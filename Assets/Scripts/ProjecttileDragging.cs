@@ -7,15 +7,39 @@ public class ProjecttileDragging : MonoBehaviour
     public LineRenderer catLineFront;
     public LineRenderer catLineBack;
 
+    public float maxStretch = 3.0f;
+
+    SpringJoint2D spring;
+
+    Vector2 prevVelocity;
 
     bool clickOn;
+
+    Ray leftCatToProjectile;
+    Ray rayToMouse;
+
+    float circleRadius;
+    float maxStretchSqr;
+
+    Transform catTransform;
+
+    private void Awake()
+    {
+        spring = GetComponent<SpringJoint2D>();
+        catTransform = spring.connectedBody.transform;
+    }
 
     // Start is called before the first frame update
     void Start()
     {
+        maxStretchSqr = maxStretch * maxStretch;
 
         LineRendererSetup();
+        rayToMouse = new Ray(catTransform.position, Vector3.zero);
+        leftCatToProjectile = new Ray(catLineFront.transform.position, Vector3.zero);
 
+        CircleCollider2D circle = GetComponent<Collider2D>() as CircleCollider2D;
+        circleRadius = circle.radius;
     }
 
     // Update is called once per frame
@@ -27,7 +51,22 @@ public class ProjecttileDragging : MonoBehaviour
             Dragging();
         }
 
+        if (spring != null)
+        {
+            if (!GetComponent<Rigidbody2D>().isKinematic && prevVelocity.sqrMagnitude > GetComponent<Rigidbody2D>().velocity.sqrMagnitude)
+            {
+                Destroy(spring);
+                GetComponent<Rigidbody2D>().velocity = prevVelocity;
+            }
+        }
+        else if(catLineFront.enabled)
+        {
+            catLineFront.enabled = false;
+            catLineBack.enabled = false;
+        }
+
         LineRendererUpdate();
+        prevVelocity = GetComponent<Rigidbody2D>().velocity;
 
     }
 
@@ -50,6 +89,17 @@ public class ProjecttileDragging : MonoBehaviour
     {
 
         Vector3 mouseWorldPoint = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 catToMouse = mouseWorldPoint - catTransform.position;
+
+        if (catToMouse.sqrMagnitude > maxStretchSqr)
+        {
+
+            rayToMouse.direction = catToMouse;
+            mouseWorldPoint = rayToMouse.GetPoint(maxStretch);
+
+        }
+
+
         mouseWorldPoint.z = 0;
         transform.position = mouseWorldPoint;
 
@@ -72,7 +122,9 @@ public class ProjecttileDragging : MonoBehaviour
     void LineRendererUpdate()
     {
 
-        Vector3 holdPoint = transform.position;
+        Vector2 catToProjectile = transform.position - catLineFront.transform.position;
+        leftCatToProjectile.direction = catToProjectile;
+        Vector3 holdPoint = leftCatToProjectile.GetPoint(catToProjectile.magnitude + circleRadius);
 
         catLineFront.SetPosition(1, holdPoint);
         catLineBack.SetPosition(1, holdPoint);
